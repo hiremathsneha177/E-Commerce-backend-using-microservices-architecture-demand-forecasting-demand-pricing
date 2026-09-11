@@ -1,0 +1,109 @@
+version: "3.9"
+
+services:
+  # ---------- Databases (one per service — database-per-service pattern) ----------
+  mongo-auth:
+    image: mongo:7
+    container_name: mongo-auth
+    volumes:
+      - mongo-auth-data:/data/db
+    ports:
+      - "27011:27017"
+
+  mongo-product:
+    image: mongo:7
+    container_name: mongo-product
+    volumes:
+      - mongo-product-data:/data/db
+    ports:
+      - "27012:27017"
+
+  mongo-order:
+    image: mongo:7
+    container_name: mongo-order
+    volumes:
+      - mongo-order-data:/data/db
+    ports:
+      - "27013:27017"
+
+  mongo-payment:
+    image: mongo:7
+    container_name: mongo-payment
+    volumes:
+      - mongo-payment-data:/data/db
+    ports:
+      - "27014:27017"
+
+  # ---------- Microservices ----------
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    environment:
+      - MONGO_URI=mongodb://mongo-auth:27017/auth-service
+      - JWT_SECRET=${JWT_SECRET:-dev_secret_change_me}
+      - PORT=5001
+    depends_on:
+      - mongo-auth
+    ports:
+      - "5001:5001"
+
+  product-service:
+    build: ./product-service
+    container_name: product-service
+    environment:
+      - MONGO_URI=mongodb://mongo-product:27017/product-service
+      - JWT_SECRET=${JWT_SECRET:-dev_secret_change_me}
+      - PORT=5002
+    depends_on:
+      - mongo-product
+    ports:
+      - "5002:5002"
+
+  order-service:
+    build: ./order-service
+    container_name: order-service
+    environment:
+      - MONGO_URI=mongodb://mongo-order:27017/order-service
+      - JWT_SECRET=${JWT_SECRET:-dev_secret_change_me}
+      - PORT=5003
+      - PRODUCT_SERVICE_URL=http://product-service:5002
+      - PAYMENT_SERVICE_URL=http://payment-service:5004
+    depends_on:
+      - mongo-order
+      - product-service
+      - payment-service
+    ports:
+      - "5003:5003"
+
+  payment-service:
+    build: ./payment-service
+    container_name: payment-service
+    environment:
+      - MONGO_URI=mongodb://mongo-payment:27017/payment-service
+      - PORT=5004
+    depends_on:
+      - mongo-payment
+    ports:
+      - "5004:5004"
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - PRODUCT_SERVICE_URL=http://product-service:5002
+      - ORDER_SERVICE_URL=http://order-service:5003
+      - PAYMENT_SERVICE_URL=http://payment-service:5004
+    depends_on:
+      - auth-service
+      - product-service
+      - order-service
+      - payment-service
+    ports:
+      - "5000:5000"
+
+volumes:
+  mongo-auth-data:
+  mongo-product-data:
+  mongo-order-data:
+  mongo-payment-data:
