@@ -1,179 +1,118 @@
-# 🛒 E-Commerce Backend using Microservices Architecture
+# Ecommerce Backend — Microservices Architecture
 
-A scalable and modular **E-Commerce Backend** designed using **Microservices Architecture**, with intelligent features such as **Dynamic Pricing** and **Demand Forecasting**.
+A backend for an ecommerce platform built as independent, containerized microservices instead of a single monolith. Each service owns its own database, communicates over REST, and sits behind a single API Gateway.
 
-## 📌 Project Overview
+## Architecture
 
-This project aims to develop a scalable e-commerce backend where different business functionalities are implemented as independent microservices.
+```mermaid
+graph TD
+    Client[Client / Frontend] --> Gateway[API Gateway :5000]
+    Gateway --> Auth[Auth Service :5001]
+    Gateway --> Product[Product Service :5002]
+    Gateway --> Order[Order Service :5003]
+    Gateway --> Payment[Payment Service :5004]
 
-The architecture is designed to provide better scalability, maintainability, flexibility, and reliability compared to a traditional monolithic application.
+    Order -->|validate stock, reduce stock| Product
+    Order -->|process payment| Payment
 
-The system also integrates **Demand Forecasting** and **Dynamic Pricing** to support data-driven inventory and pricing decisions.
+    Auth --> DBAuth[(MongoDB - auth)]
+    Product --> DBProduct[(MongoDB - product)]
+    Order --> DBOrder[(MongoDB - order)]
+    Payment --> DBPayment[(MongoDB - payment)]
+```
 
-## 🏗️ Architecture
+## Why microservices here
 
-The system will consist of multiple independent microservices communicating through APIs and event-driven messaging.
+- **Database-per-service** — each service owns its data; no shared schema, no service can be broken by another team's migration.
+- **API Gateway pattern** — the client talks to one host (`:5000`); it doesn't know or care how many services sit behind it.
+- **Service-to-service communication** — placing an order actually calls the Product Service to validate/reduce stock, then the Payment Service to process payment, demonstrating real inter-service orchestration (not just isolated CRUD apps).
+- **Independent deployability** — each service has its own `Dockerfile`, `package.json`, and can be built/deployed/scaled on its own.
 
-### Core Services
+## Services
 
-- 🔐 Authentication Service
-- 📦 Product Service
-- 🛒 Order Service
-- 📊 Inventory Service
-- 💳 Payment Service
-- 🚚 Shipping Service
-- 🔔 Notification Service
-- ⭐ Rating Service
-- 🔎 Search Service
-- 🏷️ Promotion Service
+| Service | Port | Responsibility |
+|---|---|---|
+| `api-gateway` | 5000 | Routes incoming requests to the correct backend service |
+| `auth-service` | 5001 | Registration, login, JWT issuing (bcrypt-hashed passwords) |
+| `product-service` | 5002 | Product catalog, categories, stock management |
+| `order-service` | 5003 | Cart/order creation, validates stock, triggers payment |
+| `payment-service` | 5004 | Simulated payment processing |
 
-Additional services and features will be added as development progresses.
+## Tech Stack
 
-## ✨ Key Features
+Node.js · Express · MongoDB (Mongoose) · JWT · Docker & Docker Compose · Axios (inter-service calls)
 
-- Microservices-based backend architecture
-- API Gateway for centralized request routing
-- Service discovery
-- REST-based inter-service communication
-- Event-driven communication
-- Authentication and authorization
-- Product and inventory management
-- Order and payment processing
-- Shipping management
-- Notifications
-- Product search and ratings
-- Dynamic pricing
-- Demand forecasting
-- Containerized deployment using Docker
-- Application monitoring
+## Getting Started
 
-## 🧠 AI-Based Features
+### Option 1: Docker Compose (recommended — spins up all 5 services + 4 databases)
 
-### 📈 Demand Forecasting
+```bash
+git clone https://github.com/<your-username>/ecommerce-microservices.git
+cd ecommerce-microservices
+docker-compose up --build
+```
 
-The system will analyze historical sales and product-demand data to forecast future demand.
+That's it — the whole system is live at `http://localhost:5000`.
 
-This can help with:
+### Option 2: Run services individually (for development)
 
-- Inventory planning
-- Stock management
-- Identifying high-demand products
-- Reducing overstock and stockout situations
+Each service is a standalone Node app:
 
-### 💰 Dynamic Pricing
+```bash
+cd auth-service
+cp .env.example .env   # fill in JWT_SECRET, Mongo URI
+npm install
+npm run dev
+```
 
-The dynamic pricing module will use demand-related information and other relevant factors to determine suitable product prices.
+Repeat for `product-service`, `order-service`, `payment-service`, `api-gateway`. You'll need a local MongoDB instance running for each, or point `MONGO_URI` at MongoDB Atlas.
 
-The objective is to support:
+## API Overview (via API Gateway, `http://localhost:5000`)
 
-- Demand-based pricing
-- Revenue optimization
-- Competitive pricing
-- Automated price adjustments
+**Auth**
+```
+POST /api/auth/register     { name, email, password }
+POST /api/auth/login        { email, password }
+```
 
-## 🛠️ Technologies & Tools
+**Products**
+```
+GET    /api/products               list all (supports ?category=&search=)
+GET    /api/products/:id           get one
+POST   /api/products               create (admin, requires JWT)
+PUT    /api/products/:id           update (admin)
+DELETE /api/products/:id           delete (admin)
+```
 
-### Backend
-- Java
-- Spring Boot
-- Spring Cloud
-- REST APIs
-- Maven
+**Orders**
+```
+POST /api/orders                   place an order (requires JWT)
+GET  /api/orders/my-orders         your order history (requires JWT)
+GET  /api/orders/:id               get one order
+```
 
-### Messaging
-- Apache Kafka
+**Payments**
+```
+GET /api/payments/order/:orderId   check payment status for an order
+```
 
-### Database & Storage
-- PostgreSQL
-- Redis
-- Elasticsearch
+All protected routes expect `Authorization: Bearer <token>` from `/api/auth/login`.
 
-### Security
-- Keycloak
+## Order Flow (the interesting part)
 
-### Containerization
-- Docker
-- Docker Compose
+1. Client calls `POST /api/orders` with cart items → hits Order Service via the Gateway
+2. Order Service calls Product Service to check + reduce stock for each item
+3. Order Service calls Payment Service to process payment
+4. Order status updates to `paid` or stays `pending` based on payment result
+5. Client gets back the final order with status
 
-### Monitoring
-- Prometheus
-- Grafana
+## Possible Extensions
 
-### AI / Machine Learning
-- Python
-- Machine Learning
-- Demand Forecasting
+- Message queue (RabbitMQ/Kafka) between services instead of direct REST calls
+- Redis caching in Product Service
+- CI/CD pipeline (GitHub Actions) to build and push each service's image
+- Kubernetes manifests for orchestration instead of docker-compose
 
-## 🔄 System Workflow
+## License
 
-```text
-                    Client
-                      │
-                      ▼
-                API Gateway
-                      │
-        ┌─────────────┼─────────────┐
-        ▼             ▼             ▼
-     Product        Order        Auth
-     Service       Service       Service
-        │             │
-        │             ▼
-        │         Inventory
-        │          Service
-        │             │
-        ▼             ▼
-   PostgreSQL       Kafka
-                      │
-             ┌────────┴────────┐
-             ▼                 ▼
-        Notification       Other Services
-           Service
-
-                ┌──────────────────┐
-                │ Demand Forecasting│
-                │ Dynamic Pricing   │
-                └──────────────────┘
-
-Deployment
-
-The microservices will be containerized using Docker and managed using Docker Compose during development.
-
-Containerization will provide a consistent environment for developing, testing, and deploying the application.
-
-📊 Monitoring
-
-Prometheus will be used for collecting application and service metrics, while Grafana will provide dashboards for monitoring system performance.
-
-🚧 Project Status
-
-Currently under development.
-
-Planned development stages include:
-
- Microservices setup
- API Gateway
- Service discovery
- Authentication and authorization
- Product management
- Order management
- Inventory management
- Payment integration
- Kafka event-driven communication
- Demand forecasting
- Dynamic pricing
- Docker containerization
- Monitoring with Prometheus and Grafana
-🎯 Future Enhancements
-Kubernetes deployment
-CI/CD pipeline
-Advanced demand forecasting models
-Improved dynamic pricing algorithms
-Real-time analytics
-Performance optimization
-Cloud deployment
-👩‍💻 Developer
-
-Sneha Hiremath
-
-B.E. – Information Science and Engineering
-BMS Institute of Technology and Management
+MIT
