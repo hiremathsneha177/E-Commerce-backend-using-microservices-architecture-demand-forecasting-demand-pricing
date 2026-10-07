@@ -16,7 +16,10 @@ const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5005';
 // This is the classic "API Gateway" pattern: clients only ever talk to
 // one host/port, and don't need to know how the backend is split up.
 app.use('/api/auth', createProxyMiddleware({ target: AUTH_SERVICE_URL, changeOrigin: true }));
-app.use('/api/products', createProxyMiddleware({ target: PRODUCT_SERVICE_URL, changeOrigin: true }));
+app.use('/api/products', createProxyMiddleware({
+  target: `${PRODUCT_SERVICE_URL}/api/products`,
+  changeOrigin: true
+}));
 app.use('/api/orders', createProxyMiddleware({ target: ORDER_SERVICE_URL, changeOrigin: true }));
 app.use('/api/payments', createProxyMiddleware({ target: PAYMENT_SERVICE_URL, changeOrigin: true }));
 app.use('/api/recommendations', createProxyMiddleware({ target: AI_SERVICE_URL, changeOrigin: true }));
